@@ -9,6 +9,7 @@ public final class TokenHeadlessClientConfiguration {
     private String store;
     private String username;
     private String name;
+    private String about;
     private String avatar;
     private RedisConfiguration redis;
     private StorageConfiguration storage;
@@ -70,6 +71,18 @@ public final class TokenHeadlessClientConfiguration {
 
     public void setName(String name) {
         this.name = stripQuotes(name);
+    }
+
+    public String getAbout(){
+        if (this.about == null) {
+            String about = System.getenv("TOKEN_APP_ABOUT");
+            this.about = stripQuotes(about);
+        }
+        return this.about;
+    }
+
+    public void setAbout(String about) {
+        this.about = stripQuotes(about);
     }
 
     public String getAvatar() {

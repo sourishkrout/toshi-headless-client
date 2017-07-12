@@ -157,6 +157,7 @@ class TokenHeadlessClient {
             } else {
                 userDetails.setName(config.getUsername());
             }
+            userDetails.setAbout(config.getAbout());
             String avatar = config.getAvatar();
             Boolean try_upload_avatar = false;
             // if the variable points to a URL

@@ -23,6 +23,9 @@ public class UserDetails {
     private String name;
 
     @JsonProperty
+    private String about;
+
+    @JsonProperty
     private UserDetailsCustomPayload custom;
 
     public String getUsername() {
@@ -39,6 +42,14 @@ public class UserDetails {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getAbout() {
+        return about;
+    }
+
+    public void setAbout(String about) {
+        this.about = about;
     }
 
     public String getAvatar() {
