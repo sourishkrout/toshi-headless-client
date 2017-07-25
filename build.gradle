@@ -1,19 +1,33 @@
 plugins {
     id "us.kirchmeier.capsule" version "1.0.2"
+    id "com.mattwhipple.emacs-jdee" version "0.1.0"
+    id 'nebula.lint' version '7.4.0'
+    id "com.diffplug.gradle.spotless" version "3.4.0"
 }
 
 apply plugin: 'java'
 apply plugin: 'application'
 apply plugin: 'maven'
+apply plugin: 'nebula.lint'
+
+//gradleLint.rules = ['unused-dependency']
+
+spotless {
+    java {
+        removeUnusedImports()
+    }
+}
 
 mainClassName = 'com.bakkenbaeck.token.headless.TokenHeadlessClient'
 
 group = 'com.github.toshiapp'
-version '0.1.4'
+version '0.1.5'
 
 compileJava.options.encoding = 'UTF-8'
+compileJava.options.compilerArgs << "-Xlint:deprecation"
 
 repositories {
+    mavenLocal()
     mavenCentral()
     maven { url "https://jitpack.io" }
     maven {
@@ -35,10 +49,10 @@ task ToshiHeadlessClientCapsule(type: FatCapsule) {
 
 dependencies {
 
-    compile 'org.slf4j:slf4j-simple:1.7.22'
+    compile 'org.slf4j:slf4j-simple:1.7.25'
     compile 'org.yaml:snakeyaml:1.17'
-    compile 'com.github.turasa:signal-service-java:2.4.4_unofficial_1'
-    //compile 'org.whispersystems:signal-service-java:2.4.7'
+    //compile 'org.whispersystems:signal-service-java:2.5.16'
+    compile 'com.github.tristan:libsignal-service-java:12b8a2c768'
     compile 'redis.clients:jedis:2.9.0'
     compile('org.bitcoinj:bitcoinj-core:0.14.3') {
         exclude module: 'okhttp'
@@ -53,7 +67,7 @@ dependencies {
     compile 'org.xerial:sqlite-jdbc:3.7.2'
     compile 'org.flywaydb:flyway-core:4.2.0'
 
-    compile 'com.squareup.okhttp3:okhttp:3.5.0'
+    //compile 'com.squareup.okhttp3:okhttp:3.5.0'
     compile 'com.squareup.retrofit2:retrofit:2.1.0'
     compile 'com.squareup.retrofit2:converter-moshi:2.1.0'
     compile 'com.squareup.retrofit2:adapter-rxjava:2.1.0'

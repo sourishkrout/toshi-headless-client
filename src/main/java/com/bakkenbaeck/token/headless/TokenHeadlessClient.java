@@ -3,8 +3,8 @@ package com.bakkenbaeck.token.headless;
 
 import com.bakkenbaeck.token.crypto.HDWallet;
 import com.bakkenbaeck.token.headless.db.Store;
-import com.bakkenbaeck.token.headless.db.Postgres;
-import com.bakkenbaeck.token.headless.db.Sqlite;
+import com.bakkenbaeck.token.headless.db.PostgresStore;
+import com.bakkenbaeck.token.headless.db.SqliteStore;
 import com.bakkenbaeck.token.headless.rpc.HeadlessRPC;
 import com.bakkenbaeck.token.headless.signal.Manager;
 import com.bakkenbaeck.token.model.local.User;
@@ -50,7 +50,6 @@ class TokenHeadlessClient {
         Yaml yaml = new Yaml();
         try( InputStream in = Files.newInputStream( Paths.get( configPath ) ) ) {
             config = yaml.loadAs(in, TokenHeadlessClientConfiguration.class);
-            System.out.println( config.toString() );
         } catch (Exception e) {
             System.out.println( "Error parsing configuration - " + e.getMessage() );
             return;
@@ -72,10 +71,9 @@ class TokenHeadlessClient {
             // flyway.setLocations("db/migration/sqlite");
             // flyway.migrate();
 
-            db = new Sqlite(sqliteconfig);
-            ((Sqlite)db).connect();
+            db = new SqliteStore(sqliteconfig);
             // XXX: remove this is the flyway migration issue is solved
-            ((Sqlite)db).executeResourceScript("db/migration/sqlite/V1__Initial_model.sql");
+            ((SqliteStore)db).executeResourceScript("db/migration/sqlite/V1__Initial_model.sql");
         } else if (storageConfig.getPostgres() != null) {
             PostgresConfiguration pgconfig = storageConfig.getPostgres();
             while(flyway == null || db == null) {
@@ -87,8 +85,7 @@ class TokenHeadlessClient {
                     flyway.migrate();
 
                     // -- Postgres
-                    db = new Postgres(pgconfig);
-                    ((Postgres)db).connect();
+                    db = new PostgresStore(pgconfig);
                 } catch (FlywaySqlException e) {
                     System.err.println("Could not connect to Postgres");
                     System.err.println(e.getCause().getMessage());
@@ -108,14 +105,14 @@ class TokenHeadlessClient {
             return;
         }
         HDWallet wallet = new HDWallet().init(seed);
-        System.out.println("ID Address: " + wallet.getOwnerAddress());
-        System.out.println("Payment Address: " + wallet.getPaymentAddress());
+        //System.out.println("ID Address: " + wallet.getOwnerAddress());
+        //System.out.println("Payment Address: " + wallet.getPaymentAddress());
 
         //final boolean voice = false;
         String settingsPath = config.getStore();
-        String trustStoreName = ("development".equals(config.getStage())) ? "heroku.store" : "token.store";
-        Manager m = new Manager(wallet.getOwnerAddress(), settingsPath, config.getServer(), db, trustStoreName);
-
+        String trustStoreName = ("production".equals(config.getStage())) ? "token.store" : "heroku.store";
+        // TODO: generialize the manager so it can be extended
+        Manager m = new Manager(wallet, settingsPath, config.getServer(), trustStoreName, db);
 
         // -- redis
         JedisPoolConfig poolConfig = new JedisPoolConfig();
@@ -172,7 +169,7 @@ class TokenHeadlessClient {
             }
 
             if (res.isSuccessful()) {
-                System.out.println("Registered with ID service as '"+config.getUsername()+"'");
+                //System.out.println("Registered with ID service as '"+config.getUsername()+"'");
                 if (try_upload_avatar) {
                     // TODO: this is a bit brute forcy, would be nice
                     // to not have to do this everytime the bot starts
@@ -208,14 +205,13 @@ class TokenHeadlessClient {
         // -- rpc
         HeadlessRPC rpc = new HeadlessRPC(jedisPool, wallet.getOwnerAddress(), ethService);
 
-
         final RedisSubscriber subscriber = new RedisSubscriber(rpc, m);
         new Thread(new Runnable() {
             @Override
             public void run() {
                 Jedis subscriberJedis = new Jedis(config.getRedis().getUri());
                 try {
-                    subscriberJedis.subscribe(subscriber, wallet.getOwnerAddress(), wallet.getOwnerAddress()+"_rpc_request");
+                    subscriberJedis.subscribe(subscriber, wallet.getOwnerAddress(), wallet.getOwnerAddress() + "_rpc_request");
                     System.out.println("Subscription ended.");
                 } catch (Exception e) {
                     logger.log(Level.SEVERE, "Subscribing failed.", e);
@@ -223,28 +219,13 @@ class TokenHeadlessClient {
             }
         }).start();
 
-        // -- signal
-        if (m.userExists()) {
-            try {
-                m.init();
-            } catch (Exception e) {
-                e.printStackTrace();
-                System.err.println("Error loading state file \"" + m.getFileName() + "\"");
-                return;
-            }
+        try {
+            m.init();
+        } catch (Exception e) {
+            System.err.println("Error Initialising User");
+            e.printStackTrace();
+            return;
         }
-
-        //register
-        if (!m.userHasKeys()) {
-            m.createNewIdentity();
-            try {
-                m.createEthereumAccount(wallet);
-            } catch (IOException e) {
-                System.err.println("Verify error: " + e.getMessage());
-                return;
-            }
-        }
-
 
         if (!m.isRegistered()) {
             System.err.println("User is not registered.");
@@ -262,7 +243,6 @@ class TokenHeadlessClient {
             handleAssertionError(e);
             return;
         }
-
 
         // -- cleanup
         jedisPool.destroy();

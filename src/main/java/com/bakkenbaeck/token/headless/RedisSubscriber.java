@@ -11,8 +11,6 @@ import redis.clients.jedis.JedisPubSub;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 
 class RedisSubscriber extends JedisPubSub {
@@ -30,10 +28,10 @@ class RedisSubscriber extends JedisPubSub {
     @Override
     public void onMessage(String channel, String message) {
         //System.out.println("Redis message received on channel "+channel+": "+message);
-        if (channel.equals(this.manager.getUsername())) {
+        if (channel.equals(this.manager.getOwnerAddress())) {
             try {
                 SignalWrappedSOFA wrapped = mapper.readValue(message, SignalWrappedSOFA.class);
-                if (!wrapped.getSender().equals(manager.getUsername())) {
+                if (!wrapped.getSender().equals(manager.getOwnerAddress())) {
                     //System.out.println("Ignoring: "+wrapped.getSender()+" is not "+manager.getUsername());
                     return;
                 }
@@ -72,7 +70,7 @@ class RedisSubscriber extends JedisPubSub {
             }
         }
 
-        if (channel.equals(this.manager.getUsername()+"_rpc_request")) {
+        if (channel.equals(this.manager.getOwnerAddress()+"_rpc_request")) {
             try {
                 HeadlessRPCRequest request = mapper.readValue(message, HeadlessRPCRequest.class);
                 rpc.handleRequest(request);
@@ -90,12 +88,12 @@ class RedisSubscriber extends JedisPubSub {
 
     @Override
     public void onSubscribe(String channel, int subscribedChannels) {
-          System.out.println("onSubcribe "+channel);
+        //System.out.println("onSubcribe "+channel);
     }
 
     @Override
     public void onUnsubscribe(String channel, int subscribedChannels) {
-        System.out.println("onUnSubcribe "+channel);
+        //System.out.println("onUnSubcribe "+channel);
     }
 
     @Override

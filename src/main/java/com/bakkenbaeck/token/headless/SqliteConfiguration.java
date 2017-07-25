@@ -1,7 +1,5 @@
 package com.bakkenbaeck.token.headless;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 
 public class SqliteConfiguration {
     private String file;

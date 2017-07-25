@@ -1,23 +1,10 @@
-CREATE TABLE IF NOT EXISTS bot_sessions (
-    eth_address TEXT,
-    data JSON,
-    PRIMARY KEY(eth_address)
-);
-
-CREATE TABLE IF NOT EXISTS key_value_store (
-    key TEXT,
-    value TEXT,
-    type TEXT,
-    PRIMARY KEY(key)
-);
-
 CREATE TABLE IF NOT EXISTS local_identities (
     eth_address TEXT,
     device_id INTEGER DEFAULT 0,
     password TEXT,
-    identity_key BLOB,
+    identity_key BYTEA,
     registration_id INTEGER,
-    signaling_key BLOB,
+    signaling_key BYTEA,
     prekey_id_offset INTEGER DEFAULT 0,
     next_signed_prekey_id INTEGER DEFAULT 0,
     registered BOOLEAN DEFAULT FALSE,
@@ -30,7 +17,7 @@ CREATE TABLE IF NOT EXISTS local_identities (
 CREATE TABLE IF NOT EXISTS signal_identity_store (
     name TEXT,
     device_id INTEGER,
-    identity_key BLOB,
+    identity_key BYTEA,
     updated BOOLEAN DEFAULT FALSE,
 
     PRIMARY KEY (name, device_id)
@@ -38,7 +25,7 @@ CREATE TABLE IF NOT EXISTS signal_identity_store (
 
 CREATE TABLE IF NOT EXISTS signal_prekey_store (
     prekey_id INTEGER,
-    record BLOB,
+    record BYTEA,
 
     PRIMARY KEY (prekey_id)
 );
@@ -46,14 +33,14 @@ CREATE TABLE IF NOT EXISTS signal_prekey_store (
 CREATE TABLE IF NOT EXISTS signal_session_store (
     name TEXT,
     device_id INTEGER,
-    record BLOB,
+    record BYTEA,
 
     PRIMARY KEY (name, device_id)
 );
 
 CREATE TABLE IF NOT EXISTS signal_signed_prekey_store (
     signed_prekey_id INTEGER,
-    record BLOB,
+    record BYTEA,
 
     PRIMARY KEY (signed_prekey_id)
 );
@@ -77,7 +64,7 @@ CREATE TABLE IF NOT EXISTS thread_store (
 
 CREATE TABLE IF NOT EXISTS group_store (
     user_id SERIAL,
-    group_id BLOB,
+    group_id BYTEA,
     name TEXT,
     avatar_id BIGINT,
     active BOOLEAN,
@@ -86,7 +73,7 @@ CREATE TABLE IF NOT EXISTS group_store (
 );
 
 CREATE TABLE IF NOT EXISTS group_members_store (
-    group_id BLOB,
+    group_id BYTEA,
     number TEXT,
 
     PRIMARY KEY (group_id, number)

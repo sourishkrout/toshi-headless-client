@@ -3,7 +3,6 @@ package com.bakkenbaeck.token.network.interceptor;
 
 import com.bakkenbaeck.token.crypto.HDWallet;
 import com.bakkenbaeck.token.crypto.util.HashUtil;
-import com.bakkenbaeck.token.util.SingleSuccessSubscriber;
 
 import java.io.IOException;
 import java.util.Base64;

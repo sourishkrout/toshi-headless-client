@@ -10,9 +10,7 @@ import com.squareup.moshi.Moshi;
 import okhttp3.OkHttpClient;
 import okhttp3.logging.HttpLoggingInterceptor;
 import retrofit2.Retrofit;
-import retrofit2.adapter.rxjava.RxJavaCallAdapterFactory;
 import retrofit2.converter.moshi.MoshiConverterFactory;
-import rx.schedulers.Schedulers;
 
 public class IdService {
 

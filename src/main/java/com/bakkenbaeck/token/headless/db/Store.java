@@ -1,8 +1,14 @@
 package com.bakkenbaeck.token.headless.db;
-import com.fasterxml.jackson.databind.JsonNode;
+
+import org.whispersystems.libsignal.state.SignalProtocolStore;
+import org.whispersystems.libsignal.IdentityKeyPair;
 
 public interface Store {
-    public JsonNode load(String eth_address);
-    public void save(String eth_address, JsonNode rootNode);
-    public boolean exists(String eth_address);
+    public LocalIdentityStore getLocalIdentityStore();
+    public SignalProtocolStore getSignalProtocolStore(IdentityKeyPair identityKeyPair, int registrationId);
+    public ThreadStore getThreadStore();
+    public ContactStore getContactStore();
+    public GroupStore getGroupStore();
+
+    public void migrateLegacyConfigs();
 }

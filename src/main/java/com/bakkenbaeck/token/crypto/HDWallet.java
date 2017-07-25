@@ -7,10 +7,8 @@ package com.bakkenbaeck.token.crypto;
 
 import com.tokenbrowser.crypto.hdshim.EthereumKeyChainGroup;
 import com.bakkenbaeck.token.crypto.util.TypeConverter;
-import com.tokenbrowser.exception.InvalidMasterSeedException;
 import org.bitcoinj.core.NetworkParameters;
 import org.bitcoinj.crypto.DeterministicKey;
-import org.bitcoinj.crypto.MnemonicCode;
 import org.bitcoinj.crypto.MnemonicException;
 import org.bitcoinj.wallet.DeterministicSeed;
 import org.bitcoinj.wallet.KeyChain;
@@ -19,9 +17,7 @@ import org.bitcoinj.wallet.Wallet;
 import org.spongycastle.util.encoders.Hex;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.security.Security;
-import java.util.Arrays;
 
 import static com.bakkenbaeck.token.crypto.util.HashUtil.sha3;
 
