@@ -35,6 +35,10 @@ public class StorageConfiguration {
 
     public void setEnvKey(String envKey) {
         String url = System.getenv(envKey);
+        this.setUrl(url);
+    }
+
+    public void setUrl(String url) {
         if (url.startsWith("postgres://") || url.startsWith("postgresql://")) {
             this.postgres = new PostgresConfiguration();
             if (this.sslmode != null) {

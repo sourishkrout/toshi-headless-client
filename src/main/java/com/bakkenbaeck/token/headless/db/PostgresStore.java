@@ -13,6 +13,8 @@ import org.postgresql.ds.PGPoolingDataSource;
 import java.io.IOException;
 import java.sql.*;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 
@@ -31,11 +33,12 @@ public class PostgresStore implements Store {
     private ContactStore contactStore;
     private GroupStore groupStore;
 
-    public PostgresStore(PostgresConfiguration config) {
+    public PostgresStore(PostgresConfiguration config, String schema) {
         this.pool = new PGPoolingDataSource();
         this.pool.setUrl(config.getJdbcUrl());
         this.pool.setUser(config.getUsername());
         this.pool.setPassword(config.getPassword());
+        this.pool.setCurrentSchema(schema);
     }
 
     public LocalIdentityStore getLocalIdentityStore() {
@@ -80,97 +83,131 @@ public class PostgresStore implements Store {
         try {
             conn = this.pool.getConnection();
             conn.setAutoCommit(false);
-            st = conn.prepareStatement("SELECT * FROM signal_store");
+
+            // check if the old signal_store schema still exists
+            st = conn.prepareStatement("SELECT EXISTS ( SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ? );");
+            st.setString(1, "public");
+            st.setString(2, "signal_store");
             rs = st.executeQuery();
-            Map<String, String> oldusers = new HashMap<>();
-            while (rs.next()) {
-                String eth_address = rs.getString("eth_address");
-                String json = rs.getString("data");
-                oldusers.put(eth_address, json);
+            boolean migratePublicSignalStore = rs.next() && rs.getBoolean("exists");
+            rs.close();
+            st.close();
+            if (migratePublicSignalStore) {
+
+                st = conn.prepareStatement("SELECT * FROM public.signal_store");
+                rs = st.executeQuery();
+                Map<String, String> oldusers = new HashMap<>();
+                while (rs.next()) {
+                    String eth_address = rs.getString("eth_address");
+                    String json = rs.getString("data");
+                    oldusers.put(eth_address, json);
+                }
+                rs.close();
+                st.close();
+
+                for (Map.Entry<String, String> entry : oldusers.entrySet()) {
+                    String eth_address = entry.getKey();
+                    System.out.println("Migrating user: " + eth_address);
+                    String json = entry.getValue();
+                    ObjectMapper jsonProcessor = new ObjectMapper();
+                    JsonNode rootNode = jsonProcessor.readTree(json);
+
+                    // get local id details
+                    int deviceId = rootNode.get("deviceId").asInt();
+                    String username = rootNode.get("username").asText();
+                    String password = rootNode.get("password").asText();
+                    String signalingKeyBase64 = rootNode.get("signalingKey").asText();
+                    int nextSignedPreKeyId = rootNode.get("nextSignedPreKeyId").asInt();
+                    int preKeyIdOffset = rootNode.get("preKeyIdOffset").asInt();
+                    boolean registered = rootNode.get("registered").asBoolean();
+                    JsonNode axolotlStore = rootNode.get("axolotlStore");
+                    JsonNode identityKeyStore = axolotlStore.get("identityKeyStore");
+                    String identityKeyBase64 = identityKeyStore.get("identityKey").asText();
+                    int registrationId = identityKeyStore.get("registrationId").asInt();
+
+                    st = conn.prepareStatement("INSERT INTO development.local_identities (eth_address, device_id, password, identity_key, registration_id, signaling_key, prekey_id_offset, next_signed_prekey_id, registered) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    st.setString(1, eth_address);
+                    st.setInt(2, deviceId);
+                    st.setString(3, password);
+                    st.setBytes(4, Base64.decode(identityKeyBase64));
+                    st.setInt(5, registrationId);
+                    st.setBytes(6, Base64.decode(signalingKeyBase64));
+                    st.setInt(7, preKeyIdOffset);
+                    st.setInt(8, nextSignedPreKeyId);
+                    st.setBoolean(9, registered);
+                    st.execute();
+
+                    // save identity store data
+                    JsonNode trustedKeys = identityKeyStore.get("trustedKeys");
+                    for (final JsonNode keyNode : trustedKeys) {
+                        st = conn.prepareStatement("INSERT INTO development.signal_identity_store (name, device_id, identity_key) VALUES (?, ?, ?) ON CONFLICT (name, device_id) DO NOTHING");
+                        st.setString(1, keyNode.get("name").asText());
+                        st.setInt(2, 1); // NOTE: only default node in old store
+                        st.setBytes(3, Base64.decode(keyNode.get("identityKey").asText()));
+                        st.execute();
+                        st.close();
+                    }
+
+                    // save prekey store data
+                    JsonNode preKeys = axolotlStore.get("preKeys");
+                    for (final JsonNode keyNode : preKeys) {
+                        st = conn.prepareStatement("INSERT INTO development.signal_prekey_store (prekey_id, record) VALUES (?, ?) ON CONFLICT (prekey_id) DO NOTHING;");
+                        st.setInt(1, keyNode.get("id").asInt());
+                        st.setBytes(2, Base64.decode(keyNode.get("record").asText()));
+                        st.execute();
+                        st.close();
+                    }
+
+                    // save signed prekey store
+                    JsonNode signedPreKeys = axolotlStore.get("signedPreKeyStore");
+                    for (final JsonNode keyNode : signedPreKeys) {
+                        st = conn.prepareStatement("INSERT INTO development.signal_signed_prekey_store (signed_prekey_id, record) VALUES (?, ?) ON CONFLICT (signed_prekey_id) DO NOTHING;");
+                        st.setInt(1, keyNode.get("id").asInt());
+                        st.setBytes(2, Base64.decode(keyNode.get("record").asText()));
+                        st.execute();
+                        st.close();
+                    }
+
+                    // save session store data
+                    JsonNode sessions = axolotlStore.get("sessionStore");
+                    for (final JsonNode keyNode : sessions) {
+                        st = conn.prepareStatement("INSERT INTO development.signal_session_store (name, device_id, record) VALUES (?, ?, ?) ON CONFLICT (name, device_id) DO UPDATE SET record = EXCLUDED.record;");
+                        st.setString(1, keyNode.get("name").asText());
+                        st.setInt(2, keyNode.get("deviceId").asInt());
+                        st.setBytes(3, Base64.decode(keyNode.get("record").asText()));
+                        st.execute();
+                        st.close();
+                    }
+
+                    st = conn.prepareStatement("DELETE FROM public.signal_store WHERE eth_address = ?");
+                    st.setString(1, eth_address);
+                    st.execute();
+                    st.close();
+                }
+                conn.commit();
             }
+
+            // check if there is data in the public schema that needs moving
+            st = conn.prepareStatement("SELECT EXISTS ( SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ? );");
+            st.setString(1, "public");
+            st.setString(2, "bot_sessions");
+            rs = st.executeQuery();
+            boolean migratePublicTables = rs.next() && rs.getBoolean("exists");
             rs.close();
             st.close();
 
-            for (Map.Entry<String, String> entry : oldusers.entrySet()) {
-                String eth_address = entry.getKey();
-                System.out.println("Migrating user: " + eth_address);
-                String json = entry.getValue();
-                ObjectMapper jsonProcessor = new ObjectMapper();
-                JsonNode rootNode = jsonProcessor.readTree(json);
+            if (migratePublicTables) {
+                List<String> tables = Arrays.asList("local_identities", "signal_identity_store", "signal_prekey_store", "signal_session_store", "signal_signed_prekey_store", "contacts_store", "thread_store", "group_store", "group_members_store");
+                for (String table : tables) {
+                    st = conn.prepareStatement("INSERT INTO development." + table + " SELECT * FROM public." + table);
+                    st.executeUpdate();
+                    st.close();
 
-                // get local id details
-                int deviceId = rootNode.get("deviceId").asInt();
-                String username = rootNode.get("username").asText();
-                String password = rootNode.get("password").asText();
-                String signalingKeyBase64 = rootNode.get("signalingKey").asText();
-                int nextSignedPreKeyId = rootNode.get("nextSignedPreKeyId").asInt();
-                int preKeyIdOffset = rootNode.get("preKeyIdOffset").asInt();
-                boolean registered = rootNode.get("registered").asBoolean();
-                JsonNode axolotlStore = rootNode.get("axolotlStore");
-                JsonNode identityKeyStore = axolotlStore.get("identityKeyStore");
-                String identityKeyBase64 = identityKeyStore.get("identityKey").asText();
-                int registrationId = identityKeyStore.get("registrationId").asInt();
-
-                st = conn.prepareStatement("INSERT INTO local_identities (eth_address, device_id, password, identity_key, registration_id, signaling_key, prekey_id_offset, next_signed_prekey_id, registered) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                st.setString(1, eth_address);
-                st.setInt(2, deviceId);
-                st.setString(3, password);
-                st.setBytes(4, Base64.decode(identityKeyBase64));
-                st.setInt(5, registrationId);
-                st.setBytes(6, Base64.decode(signalingKeyBase64));
-                st.setInt(7, preKeyIdOffset);
-                st.setInt(8, nextSignedPreKeyId);
-                st.setBoolean(9, registered);
-                st.execute();
-
-                // save identity store data
-                JsonNode trustedKeys = identityKeyStore.get("trustedKeys");
-                for (final JsonNode keyNode : trustedKeys) {
-                    st = conn.prepareStatement("INSERT INTO signal_identity_store (name, device_id, identity_key) VALUES (?, ?, ?) ON CONFLICT (name, device_id) DO NOTHING");
-                    st.setString(1, keyNode.get("name").asText());
-                    st.setInt(2, 1); // NOTE: only default node in old store
-                    st.setBytes(3, Base64.decode(keyNode.get("identityKey").asText()));
-                    st.execute();
+                    st = conn.prepareStatement("DELETE FROM public." + table);
+                    st.executeUpdate();
                     st.close();
                 }
-
-                // save prekey store data
-                JsonNode preKeys = axolotlStore.get("preKeys");
-                for (final JsonNode keyNode : preKeys) {
-                    st = conn.prepareStatement("INSERT INTO signal_prekey_store (prekey_id, record) VALUES (?, ?) ON CONFLICT (prekey_id) DO NOTHING;");
-                    st.setInt(1, keyNode.get("id").asInt());
-                    st.setBytes(2, Base64.decode(keyNode.get("record").asText()));
-                    st.execute();
-                    st.close();
-                }
-
-                // save signed prekey store
-                JsonNode signedPreKeys = axolotlStore.get("signedPreKeyStore");
-                for (final JsonNode keyNode : signedPreKeys) {
-                    st = conn.prepareStatement("INSERT INTO signal_signed_prekey_store (signed_prekey_id, record) VALUES (?, ?) ON CONFLICT (signed_prekey_id) DO NOTHING;");
-                    st.setInt(1, keyNode.get("id").asInt());
-                    st.setBytes(2, Base64.decode(keyNode.get("record").asText()));
-                    st.execute();
-                    st.close();
-                }
-
-                // save session store data
-                JsonNode sessions = axolotlStore.get("sessionStore");
-                for (final JsonNode keyNode : sessions) {
-                    st = conn.prepareStatement("INSERT INTO signal_session_store (name, device_id, record) VALUES (?, ?, ?) ON CONFLICT (name, device_id) DO UPDATE SET record = EXCLUDED.record;");
-                    st.setString(1, keyNode.get("name").asText());
-                    st.setInt(2, keyNode.get("deviceId").asInt());
-                    st.setBytes(3, Base64.decode(keyNode.get("record").asText()));
-                    st.execute();
-                    st.close();
-                }
-
-                st = conn.prepareStatement("DELETE FROM signal_store WHERE eth_address = ?");
-                st.setString(1, eth_address);
-                st.execute();
-                st.close();
             }
-            conn.commit();
 
         } catch (SQLException|IOException e) {
             // user isn't registered

@@ -4,4 +4,4 @@
 /.idea
 /.gradle
 /out
-/config.yml
+/config/internal.yml

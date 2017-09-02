@@ -21,7 +21,7 @@ spotless {
 mainClassName = 'com.bakkenbaeck.token.headless.TokenHeadlessClient'
 
 group = 'com.github.toshiapp'
-version '0.1.5'
+version '0.2.0'
 
 compileJava.options.encoding = 'UTF-8'
 compileJava.options.compilerArgs << "-Xlint:deprecation"
