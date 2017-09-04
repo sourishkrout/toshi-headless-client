@@ -152,6 +152,7 @@ class TokenHeadlessClient {
             userDetails.setUsername(config.getUsername());
             userDetails.setPayment_address(wallet.getPaymentAddress());
             userDetails.setIs_app(true);
+            userDetails.setPublic(config.isPublic());
             if (config.getName() != null) {
                 userDetails.setName(config.getName());
             } else {

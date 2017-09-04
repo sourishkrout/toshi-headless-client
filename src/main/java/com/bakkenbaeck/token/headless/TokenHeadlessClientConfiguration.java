@@ -11,6 +11,7 @@ public final class TokenHeadlessClientConfiguration {
     private String name;
     private String about;
     private String avatar;
+    private Boolean is_public;
     private RedisConfiguration redis;
     private StorageConfiguration storage;
 
@@ -123,5 +124,32 @@ public final class TokenHeadlessClientConfiguration {
 
     public void setToken_id_service_url(String token_id_service_url) {
         this.token_id_service_url = token_id_service_url;
+    }
+
+    public void setIs_public(Boolean is_public) {
+        this.is_public = is_public;
+    }
+
+    public Boolean getIs_public() {
+        return this.isPublic();
+    }
+
+    public void setPublic(Boolean is_public) {
+        this.is_public = is_public;
+    }
+
+    public Boolean isPublic() {
+        if (is_public != null) {
+            return is_public;
+        }
+        String pub = System.getenv("TOSHI_APP_IS_PUBLIC");
+        if (pub == null) {
+            return false;
+        }
+        pub = pub.toLowerCase();
+        if (pub.equals("") || pub.equals("0") || pub.equals("false") || pub.equals("f")) {
+            return false;
+        }
+        return true;
     }
 }
