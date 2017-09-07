@@ -5,6 +5,7 @@ public final class TokenHeadlessClientConfiguration {
     private String server;
     private String token_ethereum_service_url;
     private String token_id_service_url;
+    private String token_exchange_service_url;
     private String seed;
     private String store;
     private String username;
@@ -124,6 +125,15 @@ public final class TokenHeadlessClientConfiguration {
 
     public void setToken_id_service_url(String token_id_service_url) {
         this.token_id_service_url = token_id_service_url;
+    }
+
+
+    public String getToken_exchange_service_url() {
+        return token_exchange_service_url;
+    }
+
+    public void setToken_exchange_service_url(String token_exchange_service_url) {
+        this.token_exchange_service_url = token_exchange_service_url;
     }
 
     public void setIs_public(Boolean is_public) {
